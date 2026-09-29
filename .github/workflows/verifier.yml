@@ -1,0 +1,35 @@
+# The external approval verifier. GitHub-hosted runner only; never self-hosted.
+# pull_request_target runs THIS base-branch file with the base branch's code. It never checks out, imports
+# or executes pull request code: the one submitted inbox file is read as data through the API.
+name: verifier
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths: ['inbox/**']
+permissions:
+  contents: write        # the ledger branch only (the code writes nowhere else; main is ruleset-protected)
+  pull-requests: write   # comment and close the submission
+  issues: write
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Fetch the trusted base commit (no third-party actions, no credentials kept)
+        env:
+          REPO: ${{ github.repository }}
+          BASE_SHA: ${{ github.sha }}
+        run: |
+          git init -q base && cd base
+          git fetch -q --depth 1 "https://github.com/${REPO}.git" "${BASE_SHA}"
+          git checkout -q FETCH_HEAD
+      - name: Verify
+        working-directory: base
+        env:
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERIFIER_SIGNING_KEY: ${{ secrets.VERIFIER_SIGNING_KEY }}
+        run: node verifier/run.mjs

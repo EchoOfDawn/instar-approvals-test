@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https:; img-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Instar approvals</title>
+<link rel="stylesheet" href="style.css">
+</head><body>
+<main>
+<section id="home" hidden><h1>Instar approvals</h1><p>Open the link you were sent to approve or decline a request.</p></section>
+
+<section id="enrol" hidden><h1>Add your passkey</h1>
+<p id="enrol-where"></p>
+<p>Your phone keeps the key. This page creates it here and never receives a key from anyone else.</p>
+<button id="enrol-go" class="primary">Add passkey</button>
+<p id="enrol-result" role="status"></p>
+<div id="enrol-done" hidden><a id="enrol-save" class="primary button" rel="noopener">Save to my approvals repository</a>
+<p class="note">GitHub opens with the new approver file already filled in. Tap "Commit changes", then "Commit changes" again.</p></div>
+</section>
+
+<section id="setup" hidden><h1>Set up the verifier key</h1>
+<p>One time only. This creates the verifier's signing key in this browser.</p>
+<button id="setup-go" class="primary">Create verifier key</button>
+<div id="setup-done" hidden>
+<p>1. Copy the key, then open the secret form. Name it <b>VERIFIER_SIGNING_KEY</b>, paste, and tap "Add secret".</p>
+<textarea id="setup-secret" readonly rows="3"></textarea>
+<button id="setup-copy" class="secondary">Copy key</button> <span id="setup-copied" role="status"></span>
+<a id="setup-secret-link" class="button secondary" rel="noopener">Open the secret form</a>
+<p>2. Save the installation record (it holds only the public half).</p>
+<a id="setup-install-link" class="button primary" rel="noopener">Save installation record</a>
+</div></section>
+
+<section id="confirm" hidden>
+<h1 id="title"></h1>
+<p id="effect"></p>
+<ul id="facts" class="note"></ul>
+<div id="note-box" hidden><p class="note">Message from the requester (not checked, shown as written):</p><blockquote id="note"></blockquote></div>
+<button id="approve" class="primary"></button>
+<button id="decline" class="secondary"></button>
+<p id="result" role="status"></p>
+<div id="act-box" hidden><p class="note">Signed decision (send this back if it did not go automatically):</p><textarea id="act-out" readonly rows="4"></textarea></div>
+</section>
+
+<section id="error" hidden><h1>Cannot show this request</h1><p id="error-text"></p></section>
+</main>
+<script type="module" src="app.js"></script>
+</body></html>
