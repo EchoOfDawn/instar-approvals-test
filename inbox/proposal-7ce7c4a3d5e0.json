@@ -1,0 +1,15 @@
+{
+  "type": "InstarApprovalProposal",
+  "v": 1,
+  "installation": "instar-approvals-test",
+  "action": "emergency-stop",
+  "subject": {
+    "kind": "stop"
+  },
+  "base": "sha256:cd0aa9856147b6c5b4ff2b7dfee5da20aa38253099ef1b4a64aced233c9afe29",
+  "artifact": "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+  "request": "request:9f6e10faf65a59842a3f6782fe7bc38c75256a040a765fc8410e5ea9d278f33f",
+  "requestedBy": "github:echoofdawn",
+  "noteDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "lifetimeMs": 600000
+}
