@@ -8,8 +8,9 @@ const say = (id, text) => { $(id).textContent = text; };
 const params = new URLSearchParams(location.hash.slice(1));
 const mode = location.hash === '#enrol' ? 'enrol' : location.hash === '#setup' ? 'setup' : params.has('c') ? 'confirm' : 'home';
 const random = n => crypto.getRandomValues(new Uint8Array(n));
-const newFileLink = (repository, path, value) =>
-  `https://github.com/${repository}/new/main?filename=${encodeURIComponent(path)}&value=${encodeURIComponent(value)}`;
+// GitHub prefills a NEW file from ?filename=&value= (tested); an edit of an existing file ignores ?value=.
+const newFileLink = (repository, directory, name, value) =>
+  `https://github.com/${repository}/new/main${directory ? `/${directory}` : ''}?filename=${encodeURIComponent(name)}&value=${encodeURIComponent(value)}`;
 
 async function fetchJson(url, what) {
   const target = new URL(url);
@@ -37,8 +38,8 @@ async function enrol() {
         user: { id: random(16), name: installation.principal, displayName: 'Instar approver' }, pubKeyCredParams: [{ type: 'public-key', alg: -7 }],
         authenticatorSelection: { userVerification: 'required', residentKey: 'required' }, attestation: 'none', timeout: 120000 } });
       const record = await approverRecord(installation, credential);
-      const name = `approvers/${(await digest(record.credentialId)).slice(7, 23)}.json`;
-      const link = newFileLink(installation.repository, name, `${JSON.stringify(record, null, 2)}\n`);
+      const name = `${(await digest(record.credentialId)).slice(7, 23)}.json`;
+      const link = newFileLink(installation.repository, 'approvers', name, `${JSON.stringify(record, null, 2)}\n`);
       $('enrol-save').href = link;
       show('enrol-done');
       say('enrol-result', 'Passkey created on this device. Now save it to your approvals repository.');
@@ -60,7 +61,7 @@ async function setup() {
     parseInstallation(installation);
     $('setup-secret').value = secret;
     $('setup-secret-link').href = `https://github.com/${owner}/${repository}/settings/secrets/actions/new`;
-    $('setup-install-link').href = newFileLink(`${owner}/${repository}`, 'installation.json', `${JSON.stringify(installation, null, 2)}\n`);
+    $('setup-install-link').href = newFileLink(`${owner}/${repository}`, '', 'installation.json', `${JSON.stringify(installation, null, 2)}\n`);
     show('setup-done'); $('setup-go').disabled = true;
   };
   $('setup-copy').onclick = async () => { await navigator.clipboard.writeText($('setup-secret').value); say('setup-copied', 'Copied.'); };
