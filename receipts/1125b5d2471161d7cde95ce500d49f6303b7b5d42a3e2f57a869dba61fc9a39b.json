@@ -1,0 +1,18 @@
+{
+  "receipt": {
+    "type": "InstarApprovalReceipt",
+    "v": 1,
+    "installation": "instar-approvals-test",
+    "challengeId": "challenge:b7bd8213e9f134ff5699c1d49fc237e1556426700e60606aaba720ed02ff104c",
+    "challengeDigest": "sha256:158eff6c7f92237ea6ae6111b5aa0bf5bed261a34d29701e36471fa6ac02999d",
+    "request": "request:7702a2d863a64404bf379915813553073dce13c914aa31ccf3809d98807121c9",
+    "decision": "decline",
+    "credentialId": "O2ehaeouQ-WkOusX_T_3hvsz_1XOiecxQksDmFH7IUY",
+    "approverDigest": "sha256:da60eb5570ac28b9da3acc836c08755bb9e49d9e3ea706df5e8fb36a59099c2c",
+    "approversRef": "2001f3cd3def2fb0e3824a6d6d4a9a0a7df1b20b",
+    "actDigest": "sha256:938cc31ef115d833650560cb11c8cb942fae7f45c443df8f5409548cd06f5b30",
+    "verifiedAt": 1790724080305,
+    "keyVersion": 1
+  },
+  "signature": "FL4uEYqIWfcwCXl6hdOUGPsaZHkYyt0RYSglyZ1wuZ-RFrPgaemPOK_ZxIhkVwboYfVXxJ1_GyJD_T_K6MTGWQ"
+}
