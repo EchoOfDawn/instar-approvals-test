@@ -1,0 +1,17 @@
+{
+  "type": "InstarApprovalProposal",
+  "v": 1,
+  "installation": "instar-approvals-test",
+  "action": "raise-caps",
+  "subject": {
+    "kind": "messages",
+    "from": 5,
+    "to": 6
+  },
+  "base": "sha256:cd0aa9856147b6c5b4ff2b7dfee5da20aa38253099ef1b4a64aced233c9afe29",
+  "artifact": "sha256:ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+  "request": "request:4fb757284809280a6fe224ce7c1ea632381cd385350b36fcfc41d85e5b1a0956",
+  "requestedBy": "agent:echo",
+  "noteDigest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "lifetimeMs": 1800000
+}
