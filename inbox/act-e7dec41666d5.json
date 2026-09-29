@@ -1,0 +1,13 @@
+{
+  "type": "InstarApprovalAct",
+  "v": 1,
+  "challengeId": "challenge:aa4d2a562bc531a8c1f40f998da815fd552a832352cebbbc37b2a907ed902471",
+  "decision": "approve",
+  "nonce": "C1VC-dBVxtLV2SpVhmpLp06w28r9RoEw0-81Mvoy8I4",
+  "assertion": {
+    "credentialId": "O2ehaeouQ-WkOusX_T_3hvsz_1XOiecxQksDmFH7IUY",
+    "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiY0dpMkVXS2xZcTlrUWZQY1ZLTWpWWjBvcUlJWlJfcVpfLS1wSGFveEdwSSIsIm9yaWdpbiI6Imh0dHBzOi8vZWNob29mZGF3bi5naXRodWIuaW8iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+    "authenticatorData": "QsVR8HIwD4MIm-dwHQlsNDuVc3cz1Hk2PoYQ2RVX1coFAAAACQ",
+    "signature": "MEYCIQCkZphMl7xoL_O4xwwii4TXlOQc_8TR5gTwd2Y7Kvm5AgIhAN11VU8xMTwfrsyDQUBewmey6cSHTwyP_FlJbYgqq5BD"
+  }
+}
