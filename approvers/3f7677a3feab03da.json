@@ -1,0 +1,13 @@
+{
+  "type": "InstarApprover",
+  "v": 1,
+  "installation": "instar-approvals-test",
+  "principal": "github:echoofdawn",
+  "origin": "https://echoofdawn.github.io",
+  "rpId": "echoofdawn.github.io",
+  "credentialId": "lYRhuOAbXGit-38o-mjRMg",
+  "alg": -7,
+  "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE51O7-_mUsLhxLscFOyzWuX_IzVP2OAZZfxEx6JwTnIGnU_O66tPhT2x0fKAI1DIf4i3gG6QNe2PnbQe-LYwnIw",
+  "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiNU9Rb1FOWFpkNmdnQS1CQVZwNGpsTkZDVVc0TkN1aVRxMFFSS0ZBeFk4OCIsIm9yaWdpbiI6Imh0dHBzOi8vZWNob29mZGF3bi5naXRodWIuaW8iLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+  "authenticatorData": "QsVR8HIwD4MIm-dwHQlsNDuVc3cz1Hk2PoYQ2RVX1cpFAAAAAAAAAAAAAAAAAAAAAAAAAAAAEJWEYbjgG1xorft_KPpo0TKlAQIDJiABIVgg51O7-_mUsLhxLscFOyzWuX_IzVP2OAZZfxEx6JwTnIEiWCCnU_O66tPhT2x0fKAI1DIf4i3gG6QNe2PnbQe-LYwnIw"
+}
