@@ -1,0 +1,15 @@
+{
+  "type": "InstarApprovalInstallation",
+  "v": 1,
+  "installation": "instar-approvals-test",
+  "origin": "https://echoofdawn.github.io",
+  "rpId": "echoofdawn.github.io",
+  "repository": "EchoOfDawn/instar-approvals-test",
+  "principal": "github:echoofdawn",
+  "verifierKeys": [
+    {
+      "version": 1,
+      "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE2QR4X5Y9lsW72zylQY9w7ToWfHpaQuRbHwn7aGRZeBTWxDneXN23AQcsS8ZTnTtFNaVmjR04RKtKD0NxmUqNEg"
+    }
+  ]
+}
