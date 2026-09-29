@@ -11,24 +11,26 @@
 
 <section id="enrol" hidden><h1>Add your passkey</h1>
 <p id="enrol-where"></p>
-<p>Your phone keeps the key. This page creates it here and never receives a key from anyone else.</p>
+<p>Your device keeps the key. This page creates it here and never receives a key from anyone else.</p>
 <button id="enrol-go" class="primary">Add passkey</button>
 <p id="enrol-result" role="status"></p>
 <div id="enrol-done" hidden><a id="enrol-save" class="primary button" rel="noopener">Save to my approvals repository</a>
-<p class="note">GitHub opens with the new approver file already filled in. Tap "Commit changes", then "Commit changes" again.</p></div>
+<p class="note">GitHub opens with the new approver file already filled in. Tap "Commit changes...", then "Commit changes" in the box that opens. If GitHub offers a choice, keep "Commit directly to the main branch": a pull request is not accepted.</p></div>
 </section>
 
-<section id="setup" hidden><h1>Set up the verifier key</h1>
-<p>One time only. This creates the verifier's signing key in this browser.</p>
-<button id="setup-go" class="primary">Create verifier key</button>
-<div id="setup-done" hidden>
-<p>1. Copy the key, then open the secret form. Name it <b>VERIFIER_SIGNING_KEY</b>, paste, and tap "Add secret".</p>
-<textarea id="setup-secret" readonly rows="3"></textarea>
-<button id="setup-copy" class="secondary">Copy key</button> <span id="setup-copied" role="status"></span>
-<a id="setup-secret-link" class="button secondary" rel="noopener">Open the secret form</a>
-<p>2. Save the installation record (it holds only the public half).</p>
-<a id="setup-install-link" class="button primary" rel="noopener">Save installation record</a>
-</div></section>
+<section id="setup" hidden><h1>One-time setup</h1>
+<p>This page has already made the verifier's signing key, in this browser only. It is sent nowhere.</p>
+<p><b>1.</b> Tap below: it copies the key and opens GitHub's secret form. Type the name <b>VERIFIER_SIGNING_KEY</b>, paste the key as the value, and tap "Add secret".</p>
+<a id="setup-secret-link" class="button primary" target="_blank" rel="noopener">Copy key and open the secret form</a>
+<span id="setup-copied" role="status"></span>
+<textarea id="setup-secret" readonly rows="3" aria-label="Verifier signing key"></textarea>
+<p><b>2.</b> Save the installation record (it holds only the public half): tap "Commit changes...", then "Commit changes".</p>
+<a id="setup-install-link" class="button primary" target="_blank" rel="noopener">Save installation record</a>
+<p><b>3.</b> Protect the record: download the protection ruleset, open Rulesets, tap "New ruleset", then "Import a ruleset", choose the downloaded file and tap "Create". It stops anyone deleting or rewriting the history of your approvals; the verifier refuses to work without it.</p>
+<a class="button secondary" href="setup/protection-ruleset.json" download="instar-approvals-ruleset.json">Download the protection ruleset</a>
+<a id="setup-ruleset-link" class="button secondary" target="_blank" rel="noopener">Open Rulesets</a>
+<p><b>4.</b> Add your passkeys, on your phone and on your Mac, before relying on approvals: open this page with <b>#enrol</b> on each device.</p>
+</section>
 
 <section id="confirm" hidden>
 <h1 id="title"></h1>
@@ -42,6 +44,12 @@
 </section>
 
 <section id="error" hidden><h1>Cannot show this request</h1><p id="error-text"></p></section>
+
+<section id="recovery"><h2>If you lose your phone</h2>
+<p>Nothing is locked. Add a passkey on your phone <b>and</b> on your Mac before you rely on approvals, so either one still works; Apple passkeys also sync through iCloud Keychain.</p>
+<p>If every passkey is lost: from any computer signed into your GitHub account (GitHub has its own recovery codes), open this page with <b>#enrol</b>, add a new passkey and save it. To retire a lost device, delete its file in the <b>approvers</b> folder of your approvals repository on GitHub.</p>
+<p>A missing passkey only pauses the changes that need your approval. The agent keeps running within its limits, and "stop" in Telegram keeps working.</p>
+</section>
 </main>
 <script type="module" src="app.js"></script>
 </body></html>

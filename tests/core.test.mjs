@@ -32,8 +32,8 @@ test('genuine approve and decline are accepted and produce a receipt the runner 
   const receipt = await accept(envelope, await act(envelope));
   assert.equal(receipt.decision, 'approve');
   assert.equal(receipt.credentialId, phone.credentialId);
-  const signed = await signReceipt(receipt, await importSigningKey(V.pkcs8));
-  assert.deepEqual(await openReceipt(signed, installation), receipt);
+  const signed = await signReceipt(receipt, await importSigningKey(V.pkcs8), 1);
+  assert.deepEqual(await openReceipt(signed, installation), { ...receipt, keyVersion: 1 });
   assert.equal((await accept(envelope, await act(envelope, 'decline'))).decision, 'decline');
 });
 

@@ -1,12 +1,12 @@
 // A software WebAuthn authenticator for tests: a P-256 key producing real registration and assertion bytes.
-import { createHash, generateKeyPairSync, sign } from 'node:crypto';
+import { createHash, createPublicKey, generateKeyPairSync, sign } from 'node:crypto';
 import { b64u } from '../core.mjs';
 
 const sha = data => createHash('sha256').update(data).digest();
 const cbor = { bytes: b => Buffer.concat([Buffer.from([0x58, b.length]), b]) };
 
-export function softAuthenticator({ rpId, origin }) {
-  const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+export function softAuthenticator({ rpId, origin, privateKey: given }) {
+  const { privateKey, publicKey } = given ? { privateKey: given, publicKey: createPublicKey(given) } : generateKeyPairSync('ec', { namedCurve: 'P-256' });
   const spki = publicKey.export({ format: 'der', type: 'spki' }), point = spki.subarray(26);
   const id = Buffer.from(sha(spki).subarray(0, 16));
   const cose = Buffer.concat([Buffer.from([0xa5, 0x01, 0x02, 0x03, 0x26, 0x20, 0x01, 0x21]), cbor.bytes(point.subarray(1, 33)),

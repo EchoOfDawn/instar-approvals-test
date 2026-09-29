@@ -7,7 +7,12 @@
 export const LIMITS = Object.freeze({ maxLifetimeMs: 86_400_000, minLifetimeMs: 60_000, maxBody: 16_384,
   maxNote: 2_000, maxField: 200, maxKeys: 8, maxInt: 1_000_000_000, skewMs: 120_000 });
 export const SURFACE = 'instar-approvals';
-export const check = (condition, detail) => { if (!condition) throw new Error(detail); };
+/** A deliberate refusal. Its message is a fixed, safe sentence written here, never a copy of input, so it
+ * may appear in public logs and comments. Any other error is reported only as a fixed code (safeReason). */
+export class Refusal extends Error {}
+export const check = (condition, detail) => { if (!condition) throw new Refusal(detail); };
+export const safeReason = error => error instanceof Refusal ? error.message.slice(0, 200)
+  : error instanceof SyntaxError ? 'malformed input' : 'unexpected error';
 
 const subtle = globalThis.crypto.subtle;
 const sorted = value => Array.isArray(value) ? value.map(sorted) : value !== null && typeof value === 'object'
@@ -65,7 +70,7 @@ function checkSubject(action, subject) {
     return;
   }
   if (action === 'emergency-stop') { closed(subject, ['kind'], 'stop subject'); check(subject.kind === 'stop', 'stop kind invalid'); return; }
-  throw new Error('unsupported action');
+  throw new Refusal('unsupported action');
 }
 const PROPOSAL = ['type', 'v', 'installation', 'action', 'subject', 'base', 'artifact', 'request', 'requestedBy', 'noteDigest', 'lifetimeMs'];
 /** The agent's bounded proposal. It carries no prose: requester prose travels privately and is bound by
@@ -109,6 +114,12 @@ const verifierKey = (installation, version) => {
   check(key !== undefined, 'verifier key version unknown');
   return subtle.importKey('spki', fromB64u(key.publicKey), ECDSA, false, ['verify']);
 };
+/** The installation key version whose public half matches this secret (not the challenge's, not the highest). */
+export async function signingVersion(signingKey, installation) {
+  const probe = utf8('instar-approvals signing-key probe'), signature = await subtle.sign(SIGN, signingKey, probe);
+  for (const { version } of installation.verifierKeys) if (await subtle.verify(SIGN, await verifierKey(installation, version), signature, probe)) return version;
+  throw new Refusal('the verifier signing key is not listed in installation.json');
+}
 const signed = async (field, body, key) => ({ [field]: body, signature: b64u(await subtle.sign(SIGN, key, utf8(canonical(body)))) });
 async function checkSigned(envelope, field, installation) {
   closed(envelope, [field, 'signature'], `signed ${field}`);
@@ -149,10 +160,11 @@ export async function render(challenge, note) {
     title = `Approve raising the ${one} allowance from ${from} to ${to}?`;
     effect = `That adds ${to - from} ${effectText} in this trial. Your saved messages are then answered. You can still stop the trial at any time.`;
   } else if (challenge.action === 'emergency-stop') {
-    title = 'Stop this preview agent permanently?';
-    effect = 'It stops at once. Nothing more will be sent or spent in this trial, and it cannot be restarted from here.';
-    approve = 'Stop now'; decline = null;
-  } else throw new Error('unsupported action');
+    title = 'Sign a request to stop this preview agent?';
+    effect = 'This signs a stop request. The independent verifier records it within about a minute, and the stop takes effect when '
+      + 'the agent next checks for it. To stop immediately, send "stop" in Telegram; that works without this page.';
+    approve = 'Sign stop request'; decline = null;
+  } else throw new Refusal('unsupported action');
   let shownNote = null;
   if (note !== undefined && note !== null) {
     check(typeof note === 'string' && note.length <= LIMITS.maxNote, 'requester note too long');
@@ -181,7 +193,7 @@ function readCbor(bytes, start) { // the subset a COSE EC2 key uses: unsigned/ne
     if (major === 1) return -1 - n;
     if (major === 2) { const value = bytes.slice(at, at + n); check(value.length === n, 'truncated COSE key'); at += n; return value; }
     if (major === 5) { check(n <= 8, 'COSE key too large'); const map = new Map(); for (let i = 0; i < n; i++) { const key = item(); map.set(key, item()); } return map; }
-    throw new Error('unsupported COSE item');
+    throw new Refusal('unsupported COSE item');
   };
   const value = item();
   return { value, end: at };
@@ -284,9 +296,53 @@ export async function acceptAct({ envelope, act, approvers, installation, now, a
   const approver = await verifyAssertion({ approvers, installation, expected, assertion: act.assertion });
   return { type: 'InstarApprovalReceipt', v: 1, installation: installation.installation, challengeId: challenge.id,
     challengeDigest: await digest(challenge), request: challenge.request, decision: act.decision, credentialId: approver.credentialId,
-    approverDigest: await digest(approver), approversRef, actDigest: await digest(act), verifiedAt: now, keyVersion: challenge.keyVersion };
+    approverDigest: await digest(approver), approversRef, actDigest: await digest(act), verifiedAt: now, challengeKeyVersion: challenge.keyVersion };
 }
-export const signReceipt = (receipt, signingKey) => signed('receipt', receipt, signingKey);
+/** The receipt names the key version that actually signs it; the challenge's own version is kept separately. */
+export const signReceipt = (receipt, signingKey, keyVersion) => signed('receipt', { ...receipt, keyVersion }, signingKey);
 /** Runner / effect owner: a receipt counts only if the pinned verifier key signed it. The effect owner
  * must still recheck current authority, scope and base against its own governing state. */
 export const openReceipt = (envelope, installation) => checkSigned(envelope, 'receipt', installation);
+
+// ---------------------------------------------------------------- bounded reads of untrusted feeds (client)
+/** Fetch JSON from an untrusted HTTPS address: no credentials, no redirects, a byte ceiling enforced while
+ * reading (the stream is cancelled the moment it is exceeded) and one deadline covering connect and read. */
+export async function fetchBounded(url, what, { maxBytes = LIMITS.maxBody, timeoutMs = 15_000, fetchImpl = globalThis.fetch } = {}) {
+  let target;
+  try { target = new URL(url); } catch { throw new Refusal(`${what} address is invalid`); }
+  check(target.protocol === 'https:', `${what} must be fetched over HTTPS`);
+  const controller = new AbortController();
+  let timer;
+  const deadline = new Promise((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new Refusal(`${what} took too long`)); }, timeoutMs); });
+  let reader;
+  try {
+    const response = await Promise.race([fetchImpl(target, { cache: 'no-store', credentials: 'omit', redirect: 'error', signal: controller.signal }), deadline]);
+    check(response.ok, `${what} could not be fetched`);
+    check(response.body, `${what} is empty`);
+    reader = response.body.getReader();
+    const chunks = []; let total = 0;
+    for (;;) {
+      const { done, value } = await Promise.race([reader.read(), deadline]);
+      if (done) break;
+      total += value.byteLength;
+      check(total <= maxBytes, `${what} is too large`);
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(total); let at = 0;
+    for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.byteLength; }
+    try { return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch { throw new Refusal(`${what} is not valid JSON`); }
+  } catch (error) {
+    reader?.cancel().catch(() => {});
+    controller.abort();
+    throw error instanceof Refusal ? error : new Refusal(`${what} could not be fetched`);
+  } finally { clearTimeout(timer); }
+}
+
+// ---------------------------------------------------------------- what the page says after a tap (client)
+/** Signed and delivered, signed but not delivered, or not signed: three different states, never merged. */
+export function resultText({ decision, action, signed, delivered, error }) {
+  if (!signed) return `Not signed: ${error}`;
+  if (!delivered) return `Signed, but not delivered (${error}). Copy the signed decision below and send it back.`;
+  if (action === 'emergency-stop') return 'Stop request signed and sent. The verifier records it next; to stop immediately, send "stop" in Telegram.';
+  return decision === 'approve' ? 'Signed and sent: approved. The independent verifier records it next.' : 'Signed and sent: declined. Nothing will change.';
+}
