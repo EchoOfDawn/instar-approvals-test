@@ -1,0 +1,28 @@
+{
+  "challenge": {
+    "type": "InstarApprovalChallenge",
+    "v": 1,
+    "id": "challenge:94a855463db9a2c5789a16d646ad1fd055f72167a670d3bf495820ca89e566e3",
+    "surface": "instar-approvals",
+    "installation": "instar-approvals-test",
+    "origin": "https://echoofdawn.github.io",
+    "rpId": "echoofdawn.github.io",
+    "principal": "github:echoofdawn",
+    "action": "raise-caps",
+    "subject": {
+      "kind": "model-calls",
+      "from": 100,
+      "to": 120
+    },
+    "base": "sha256:be207eadc591b65c7428107ec908f7b1fc585633fa7529e4be67f20eb8988f0b",
+    "artifact": "sha256:d04c282c8d0a8860b9f3367e629947e540d05ea55dd14c9fe165f1711d46ad7e",
+    "request": "request:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "requestedBy": "agent:echo",
+    "noteDigest": "sha256:5fdf6baead6f0047a0d8e5e055834807cc960785f18e50a0fcdd63278fde576d",
+    "issuedAt": 1790727840074,
+    "expiresAt": 1790731440074,
+    "singleUse": true,
+    "keyVersion": 1
+  },
+  "signature": "6QSqO82gr2A2OjXttEAdgjnKnSxsI7QrQcTtK0e6Dtzr1_O3ShOOYhukrlNxeyBSVbHPxYYgXPH72hksTrJ52w"
+}
