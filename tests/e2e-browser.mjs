@@ -36,12 +36,13 @@ if (mode === 'enrol') {
   await cdp.send('WebAuthn.addCredential', { authenticatorId, credential: JSON.parse(readFileSync(`${state}/credential.json`, 'utf8')) });
   // The relay: intercept the return address and capture the signed act (a real relay forwards it).
   await page.route('https://relay.invalid/**', async route => {
-    if (route.request().method() === 'POST') report.act = JSON.parse(route.request().postData());
+    if (route.request().method() === 'POST') { report.posts = (report.posts ?? 0) + 1; report.act = JSON.parse(route.request().postData()); }
     // GET serves the requester's private note (the relay's job); POST receives the signed act.
     const url = route.request().url();
     const body = route.request().method() !== 'GET' ? '{}' : url.endsWith('/env') ? readFileSync(process.env.ENVELOPE, 'utf8')
       : JSON.stringify({ note: process.env.NOTE ?? '' });
-    await route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' }, body });
+    const status = route.request().method() === 'POST' ? Number(process.env.RELAY_STATUS ?? 200) : 200;
+    await route.fulfill({ status, headers: { 'access-control-allow-origin': '*', 'content-type': 'application/json' }, body });
   });
   const frameFrom = process.argv.indexOf('--frame-from');
   if (frameFrom > 0) { // cross-origin embedding attempt: an outside page frames the approval page
@@ -56,7 +57,10 @@ if (mode === 'enrol') {
       note: await page.isVisible('#note-box') ? await page.textContent('#note') : null, error: await page.isVisible('#error') ? await page.textContent('#error-text') : null };
     if (report.shown.error === null && decision !== 'none') {
       await page.click(decision === 'approve' ? '#approve' : '#decline');
-      await page.waitForFunction(() => document.getElementById('result').textContent !== '', null, { timeout: 20000 });
+      // Wait for the final state, past the in-progress ones ("Waiting for your passkey...", "Sending...").
+      await page.waitForFunction(() => { const text = document.getElementById('result').textContent; return text !== '' && !text.endsWith('...'); }, null, { timeout: 20000 });
+      report.posts ??= 0;
+      report.copyBoxShown = await page.isVisible('#act-out');
       report.result = await page.textContent('#result');
       if (report.act === undefined && await page.isVisible('#act-out')) report.act = JSON.parse(await page.inputValue('#act-out'));
     }

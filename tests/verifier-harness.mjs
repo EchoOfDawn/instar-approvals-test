@@ -10,7 +10,9 @@ const TREE = process.env.TREE ?? join(dirname(fileURLToPath(import.meta.url)), '
 const b64 = text => Buffer.from(text).toString('base64');
 let run = 0;
 
-/** A repository: `main` is a list of states (each { sha, files: {path: text}, history: {path: [{sha, login, pulls}]} });
+/** A repository (optional hooks: `onMain()` runs on each main-ref read; `beforeWrite(file)` runs before a ledger
+ * create and may return a status to answer instead, modelling a concurrent ledger commit).
+ * A repository: `main` is a list of states (each { sha, files: {path: text}, history: {path: [{sha, login, pulls}]} });
  * `mainAt` picks which state answers each successive `git/ref/heads/main` read (to model a concurrent change). */
 export function repository({ name, main, ledger = new Map(), ledgerExists = true, rules = ['deletion', 'non_fast_forward'] }) {
   return { name, main, ledger, ledgerExists, rules, mainReads: 0, comments: [], logs: [], closed: false, failComments: 0, writes: [] };
@@ -38,7 +40,7 @@ export async function runVerifier(repo, { submission, pr = 1, now, secret, baseF
     const path = decodeURIComponent(u.pathname.replace(`/repos/${repo.name}/`, '')), ref = u.searchParams.get('ref');
     if (path === `pulls/${pr}/files`) return answer(200, [{ status: 'added', filename: inbox }]);
     if (path === `contents/${inbox}`) return answer(200, { size: Buffer.byteLength(submission), content: b64(submission) });
-    if (path === 'git/ref/heads/main') { const current = state(); repo.mainReads++; return answer(200, { object: { sha: current.sha } }); }
+    if (path === 'git/ref/heads/main') { repo.onMain?.(); const current = state(); repo.mainReads++; return answer(200, { object: { sha: current.sha } }); }
     if (path === 'git/ref/heads/ledger') return repo.ledgerExists ? answer(200, { object: { sha: 'ledger-head' } }) : answer(404, {});
     if (path === 'git/trees' || path === 'git/commits') return answer(201, { sha: `${path}-new` });
     if (path === 'git/refs' && method === 'POST') { repo.ledgerExists = true; return answer(201, {}); }
@@ -57,6 +59,7 @@ export async function runVerifier(repo, { submission, pr = 1, now, secret, baseF
       if (ref === 'ledger' || (method === 'PUT' && JSON.parse(options.body).branch === 'ledger')) {
         if (!repo.ledgerExists) return answer(404, {});
         if (method === 'GET') return repo.ledger.has(file) ? answer(200, { content: b64(repo.ledger.get(file)) }) : answer(404, {});
+        if (repo.beforeWrite) { const blocked = await repo.beforeWrite(file); if (blocked) return answer(blocked, {}); }
         if (repo.ledger.has(file)) return answer(422, {});
         repo.ledger.set(file, Buffer.from(JSON.parse(options.body).content, 'base64').toString('utf8'));
         repo.writes.push(file);

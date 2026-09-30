@@ -40,14 +40,23 @@ async function checkProtection() {
     check(types.has('deletion') && types.has('non_fast_forward'), 'the protection ruleset is not active; import it once (see the setup page)');
   }
 }
-/** Create-once on the ledger branch: GitHub refuses a create when the path exists (the durable claim). */
-async function createOnce(path, value) {
+const ATTEMPTS = 6;
+const pause = attempt => new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+/** One create-once attempt on the ledger branch. GitHub refuses a create when the path exists (the durable
+ * claim): 'created', 'exists' (the claim is someone else's), or 'retry' (a concurrent ledger commit; nothing
+ * was written). */
+async function putOnce(path, value) {
   const content = Buffer.from(`${JSON.stringify(value, null, 2)}\n`).toString('base64');
-  for (let attempt = 0; attempt < 6; attempt++) {
-    const { status } = await api('PUT', `contents/${path}`, { message: `verifier: ${path}`, content, branch: LEDGER }, [409, 422]);
-    if (status === 200 || status === 201) return true;
-    if (status === 422 && (await readLedger(path)) !== null) return false; // already exists: the claim is someone else's
-    await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1))); // a concurrent ledger commit; retry
+  const { status } = await api('PUT', `contents/${path}`, { message: `verifier: ${path}`, content, branch: LEDGER }, [409, 422]);
+  if (status === 200 || status === 201) return 'created';
+  if (status === 422 && (await readLedger(path)) !== null) return 'exists';
+  return 'retry';
+}
+async function createOnce(path, value) {
+  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    const result = await putOnce(path, value);
+    if (result !== 'retry') return result === 'created';
+    await pause(attempt);
   }
   throw new Refusal('ledger write did not settle');
 }
@@ -100,11 +109,10 @@ async function main() {
   const submission = JSON.parse(decode(blob.content)); // data only
   await checkProtection();
   await ensureLedger();
-  const now = Date.now();
   const signingKey = await importSigningKey(env('VERIFIER_SIGNING_KEY'));
   if (files[0].filename.startsWith('inbox/proposal-')) {
     const { installation } = await loadAuthority(await mainHead());
-    const envelope = await issueChallenge({ proposal: submission, installation, now, random: crypto.getRandomValues(new Uint8Array(32)),
+    const envelope = await issueChallenge({ proposal: submission, installation, now: Date.now(), random: crypto.getRandomValues(new Uint8Array(32)),
       signingKey, keyVersion: await signingVersion(signingKey, installation) });
     check((await readLedger(`receipts/${await consumeKey(envelope.challenge)}.json`)) === null, 'this request was already decided');
     const name = envelope.challenge.id.slice('challenge:'.length);
@@ -116,26 +124,32 @@ async function main() {
   const envelope = await readLedger(`challenges/${name}.json`); // the verifier's own record, never the submitter's copy
   check(envelope !== null, 'unknown challenge');
   const key = await consumeKey(envelope.challenge);
-  // Recovery comes first, before any fresh-admission check: an acceptance already on the ledger is the
-  // decision. Re-announcing it grants nothing new and rewrites nothing, whatever expiry or authority say now.
-  const prior = await readLedger(`receipts/${key}.json`);
-  if (prior !== null) {
-    check(prior.receipt?.actDigest === await digest(submission), 'this request was already decided (replay refused)');
-    return settle(`receipt ${key} already recorded`);
+  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    if (attempt > 0) await pause(attempt - 1);
+    // Recovery comes first, before any fresh-admission check: an acceptance already on the ledger is the
+    // decision. Re-announcing it grants nothing new and rewrites nothing, whatever expiry or authority say now.
+    const prior = await readLedger(`receipts/${key}.json`);
+    if (prior !== null) {
+      check(prior.receipt?.actDigest === await digest(submission), 'this request was already decided (replay refused)');
+      return settle(`receipt ${key} already recorded`);
+    }
+    // Fresh admission on EVERY write attempt: a failed write recorded nothing, so a retry is a new acceptance
+    // and must see current main and the current clock, never the authority or time of an earlier attempt.
+    const ref = await mainHead();
+    const { installation, approvers } = await loadAuthority(ref);
+    await openChallenge(envelope, installation);
+    const now = Date.now(); // sampled after the authority load: a slow load cannot carry an earlier time past expiry
+    const receipt = await acceptAct({ envelope, act: submission, approvers, installation, now, approversRef: ref });
+    const signedReceipt = await signReceipt(receipt, signingKey, await signingVersion(signingKey, installation));
+    // The last admission check before the write: main unchanged since the authority read, challenge unexpired.
+    // A revocation landing after this point, during the one write, is ordered after the acceptance; the receipt
+    // names the authority commit it checked, and the effect owner rechecks current authority at use.
+    check((await mainHead()) === ref, 'authority changed during acceptance; submit the decision again');
+    check(Date.now() < envelope.challenge.expiresAt, 'challenge expired');
+    if ((await putOnce(`receipts/${key}.json`, signedReceipt)) === 'created') return settle(`${receipt.decision} recorded as receipt ${key}`);
+    // 'exists' (a concurrent job accepted first) is recovered, and 'retry' re-admitted, by the next pass.
   }
-  const ref = await mainHead();
-  const { installation, approvers } = await loadAuthority(ref);
-  await openChallenge(envelope, installation);
-  const receipt = await acceptAct({ envelope, act: submission, approvers, installation, now, approversRef: ref });
-  const signedReceipt = await signReceipt(receipt, signingKey, await signingVersion(signingKey, installation));
-  // The authority read and the create-once acceptance must see the same main: a revocation in between refuses.
-  check((await mainHead()) === ref, 'authority changed during acceptance; submit the decision again');
-  if (!(await createOnce(`receipts/${key}.json`, signedReceipt))) { // a concurrent job accepted first
-    const winner = await readLedger(`receipts/${key}.json`);
-    check(winner?.receipt?.actDigest === receipt.actDigest, 'this request was already decided (replay refused)');
-    return settle(`receipt ${key} already recorded`);
-  }
-  return settle(`${receipt.decision} recorded as receipt ${key}`);
+  throw new Refusal('ledger write did not settle');
 }
 
 main().catch(async error => {

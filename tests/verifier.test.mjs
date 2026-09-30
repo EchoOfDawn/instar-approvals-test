@@ -1,6 +1,7 @@
 // The verifier entry point end to end, against an in-memory GitHub (tests/verifier-harness.mjs).
-// Round-2 must-fixes: current authority (MF1), recoverable acceptance and key versions (MF2), custodian
-// identity and history (MF3), no input echoed into public output (MF6), and the ledger/ruleset bootstrap.
+// Round-2/3 must-fixes: current authority, re-admitted on every write attempt (MF1, R2-MF1), recoverable
+// acceptance and key versions (MF2), custodian identity and history (MF3), no input echoed into public output
+// (MF6), and the ledger/ruleset bootstrap.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync } from 'node:crypto';
@@ -74,6 +75,85 @@ test('MF1: main changing between the authority read and the acceptance write ref
   await runVerifier(repo, { submission: JSON.stringify(s.act), now: T0 + 1000, secret: V1.secret });
   assert.match(outcome(repo), /refused: authority changed/u);
   assert.equal(repo.writes.length, 0);
+});
+
+// R2-MF1: a failed ledger write recorded nothing, so every new write attempt is admitted afresh against
+// current main and the current clock; the clock is sampled after the authority load, not before it.
+async function retried(change) {
+  const s = await scenario();
+  const repo = repository({ name: s.repoName, ledger: s.ledger, main: [{ sha: 'AUTHORIZED', files: s.files, history: s.history }] });
+  let attempts = 0;
+  repo.beforeWrite = file => { if (!file.startsWith('receipts/')) return 0; attempts++; if (attempts === 1) { change(s, repo); return 409; } return 0; };
+  await runVerifier(repo, { submission: JSON.stringify(s.act), now: T0 + 1000, secret: V1.secret });
+  return { s, repo, attempts };
+}
+
+test('R2-MF1: a revocation completed after a failed receipt write refuses the retry', async () => {
+  const { s, repo, attempts } = await retried((s, repo) => {
+    const revoked = { ...s.files }; delete revoked[s.approverPath];
+    repo.main = [{ sha: 'REVOKED', files: revoked, history: { 'installation.json': s.history['installation.json'] } }];
+  });
+  assert.equal(attempts, 1, 'no second write under the revoked authority');
+  assert.match(outcome(repo), /refused: passkey not enrolled/u);
+  assert.equal(repo.ledger.has(`receipts/${s.key}.json`), false, 'nothing is accepted');
+});
+
+test('R2-MF1: expiry reached after a failed receipt write refuses the retry', async () => {
+  const { s, repo, attempts } = await retried(() => { Date.now = () => T0 + 120_000; });
+  assert.equal(attempts, 1);
+  assert.match(outcome(repo), /refused: challenge expired/u);
+  assert.equal(repo.ledger.has(`receipts/${s.key}.json`), false);
+});
+
+test('R2-MF1: a failed write with authority and clock unchanged is retried and accepted, binding current main', async () => {
+  const { s, repo, attempts } = await retried(() => {});
+  assert.equal(attempts, 2);
+  assert.match(outcome(repo), /approve recorded as receipt/u);
+  const receipt = await C.openReceipt(JSON.parse(repo.ledger.get(`receipts/${s.key}.json`)), s.installation);
+  assert.equal(receipt.approversRef, 'AUTHORIZED');
+  assert.equal(receipt.verifiedAt, T0 + 1000);
+});
+
+test('R2-MF1: expiry reached while authority loads refuses; the clock is sampled after the load', async () => {
+  const s = await scenario();
+  const repo = repository({ name: s.repoName, ledger: s.ledger, main: [{ sha: 'AUTHORIZED', files: s.files, history: s.history }] });
+  repo.onMain = () => { Date.now = () => T0 + 120_000; };
+  await runVerifier(repo, { submission: JSON.stringify(s.act), now: T0 + 1000, secret: V1.secret });
+  assert.match(outcome(repo), /refused: challenge expired/u);
+  assert.equal(repo.writes.length, 0);
+});
+
+test('R2-MF1: the receipt records the time sampled after the authority load, not before it', async () => {
+  const s = await scenario();
+  const repo = repository({ name: s.repoName, ledger: s.ledger, main: [{ sha: 'AUTHORIZED', files: s.files, history: s.history }] });
+  repo.onMain = () => { if (repo.mainReads === 0) Date.now = () => T0 + 30_000; }; // the load takes 29 s, within the lifetime
+  await runVerifier(repo, { submission: JSON.stringify(s.act), now: T0 + 1000, secret: V1.secret });
+  assert.match(outcome(repo), /approve recorded/u);
+  const receipt = await C.openReceipt(JSON.parse(repo.ledger.get(`receipts/${s.key}.json`)), s.installation);
+  assert.equal(receipt.verifiedAt, T0 + 30_000);
+});
+
+test('R2-MF1: expiry reached during the final authority recheck refuses before the write', async () => {
+  const s = await scenario();
+  const repo = repository({ name: s.repoName, ledger: s.ledger, main: [{ sha: 'AUTHORIZED', files: s.files, history: s.history }] });
+  repo.onMain = () => { if (repo.mainReads === 1) Date.now = () => T0 + 120_000; }; // the second read is the recheck
+  await runVerifier(repo, { submission: JSON.stringify(s.act), now: T0 + 1000, secret: V1.secret });
+  assert.match(outcome(repo), /refused: challenge expired/u);
+  assert.equal(repo.writes.length, 0);
+});
+
+test('R2-MF1: a concurrent job that accepts during the retry wait is recovered on re-admission, not overwritten', async () => {
+  const s = await scenario();
+  const other = repository({ name: s.repoName, ledger: new Map(s.ledger), main: [{ sha: 'AUTHORIZED', files: s.files, history: s.history }] });
+  await runVerifier(other, { submission: JSON.stringify(s.act), now: T0 + 1000, secret: V1.secret });
+  const winner = other.ledger.get(`receipts/${s.key}.json`); // the concurrent job's receipt
+  const repo = repository({ name: s.repoName, ledger: s.ledger, main: [{ sha: 'AUTHORIZED', files: s.files, history: s.history }] });
+  let attempts = 0;
+  repo.beforeWrite = file => { if (!file.startsWith('receipts/')) return 0; attempts++; repo.ledger.set(file, winner); return 409; };
+  await runVerifier(repo, { submission: JSON.stringify(s.act), now: T0 + 1000, secret: V1.secret });
+  assert.equal(attempts, 1);
+  assert.match(outcome(repo), /already recorded/u);
+  assert.equal(repo.ledger.get(`receipts/${s.key}.json`), winner);
 });
 
 test('MF2: acceptance durable but not announced, retried after expiry and an authority change, recovers the same receipt', async () => {

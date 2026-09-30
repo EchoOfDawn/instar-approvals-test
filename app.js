@@ -76,26 +76,32 @@ async function confirm() {
   const frozen = canonical(challenge);
   const act = async decision => {
     let signed = null;
+    const tell = (delivery, error) => say('result', resultText({ decision, action: challenge.action, signed: signed !== null, delivery, error }));
     try {
       for (const button of document.querySelectorAll('#confirm button')) button.disabled = true;
       if (canonical(challenge) !== frozen) throw new Error('the request changed; reload to confirm again');
       const nonce = b64u(random(32));
       const expected = await actChallenge(challenge, decision, nonce);
+      say('result', 'Waiting for your passkey...');
       const credential = await navigator.credentials.get({ publicKey: { challenge: expected, rpId: installation.rpId, userVerification: 'required', timeout: 120000 } });
       signed = { type: 'InstarApprovalAct', v: 1, challengeId: challenge.id, decision, nonce, assertion: {
         credentialId: credential.id, clientDataJSON: b64u(credential.response.clientDataJSON),
         authenticatorData: b64u(credential.response.authenticatorData), signature: b64u(credential.response.signature) } };
       $('act-out').value = JSON.stringify(signed);
+      // "Sent" is claimed only after the return address confirmed receipt; with none, the owner sends it.
+      let delivery = 'manual';
       if (params.has('r')) {
         const target = new URL(params.get('r'));
         if (target.protocol !== 'https:') throw new Error('return address must be HTTPS');
+        tell('sending');
         const response = await fetch(target, { method: 'POST', credentials: 'omit', redirect: 'error', signal: AbortSignal.timeout(15_000), headers: { 'content-type': 'application/json' }, body: JSON.stringify(signed) });
         if (!response.ok) throw new Error(`the return address answered ${response.status}`);
+        delivery = 'sent';
       }
-      say('result', resultText({ decision, action: challenge.action, signed: true, delivered: true }));
-      show('act-box', !params.has('r'));
+      tell(delivery);
+      show('act-box', delivery !== 'sent');
     } catch (error) {
-      say('result', resultText({ decision, action: challenge.action, signed: signed !== null, delivered: false, error: error.message }));
+      tell('failed', error.message);
       show('act-box', signed !== null);
     }
   };

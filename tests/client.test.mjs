@@ -64,13 +64,19 @@ test('MF4: the stop is described as a signed request, not an immediate stop, and
   assert.match(view.approve, /Sign stop request/u);
 });
 
-test('MF4: a signed decision whose delivery failed is not reported as unsigned', () => {
+test('MF4 / R2-MF2: signing, delivery and acceptance are reported as separate states', () => {
   assert.equal(typeof C.resultText, 'function');
-  const failed = C.resultText({ decision: 'approve', action: 'raise-caps', signed: true, delivered: false, error: 'the return address answered 502' });
+  const failed = C.resultText({ decision: 'approve', action: 'raise-caps', signed: true, delivery: 'failed', error: 'the return address answered 502' });
   assert.match(failed, /^Signed, but not delivered/u);
   assert.doesNotMatch(failed, /Not signed/u);
   assert.match(C.resultText({ decision: 'approve', signed: false, error: 'cancelled' }), /^Not signed: cancelled/u);
-  assert.match(C.resultText({ decision: 'approve', action: 'raise-caps', signed: true, delivered: true }), /^Signed and sent: approved/u);
+  assert.match(C.resultText({ decision: 'approve', action: 'raise-caps', signed: true, delivery: 'sent' }), /^Signed and sent: approved\. .*not recorded yet/u);
+  for (const delivery of ['manual', undefined, 'sending']) {
+    assert.doesNotMatch(C.resultText({ decision: 'approve', action: 'raise-caps', signed: true, delivery }), /sent:|and sent|recorded as/u);
+  }
+  const stop = C.resultText({ decision: 'approve', action: 'emergency-stop', signed: true, delivery: 'manual' });
+  assert.match(stop, /^Signed: stop request\. Not sent/u);
+  assert.match(stop, /send "stop" in Telegram/u);
 });
 
 test('MF4: the page gives the measured commit steps and the lose-your-phone path', () => {

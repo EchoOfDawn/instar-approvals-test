@@ -339,10 +339,16 @@ export async function fetchBounded(url, what, { maxBytes = LIMITS.maxBody, timeo
 }
 
 // ---------------------------------------------------------------- what the page says after a tap (client)
-/** Signed and delivered, signed but not delivered, or not signed: three different states, never merged. */
-export function resultText({ decision, action, signed, delivered, error }) {
+/** Not signed, signed (sending, sent, not delivered, or left for the owner to send), never merged. */
+export function resultText({ decision, action, signed, delivery, error }) {
+  // Three separate states: signed (on this device), sent (the return address confirmed receipt), recorded (the
+  // verifier's acceptance, which this page never observes and so never claims).
   if (!signed) return `Not signed: ${error}`;
-  if (!delivered) return `Signed, but not delivered (${error}). Copy the signed decision below and send it back.`;
-  if (action === 'emergency-stop') return 'Stop request signed and sent. The verifier records it next; to stop immediately, send "stop" in Telegram.';
-  return decision === 'approve' ? 'Signed and sent: approved. The independent verifier records it next.' : 'Signed and sent: declined. Nothing will change.';
+  const what = action === 'emergency-stop' ? 'stop request' : decision === 'approve' ? 'approved' : 'declined';
+  const stopNow = action === 'emergency-stop' ? ' To stop immediately, send "stop" in Telegram.' : '';
+  if (delivery === 'sending') return `Signed: ${what}. Sending...`;
+  if (delivery === 'failed') return `Signed, but not delivered (${error}). Copy the signed decision below and send it back.${stopNow}`;
+  if (delivery !== 'sent') return `Signed: ${what}. Not sent yet. Copy the signed decision below and send it back. Nothing is recorded until the verifier accepts it.${stopNow}`;
+  if (decision === 'decline' && action !== 'emergency-stop') return 'Signed and sent: declined. Nothing will change.';
+  return `Signed and sent: ${what}. The return address confirmed receipt; not recorded yet, the independent verifier records it next.${stopNow}`;
 }
